@@ -1,8 +1,5 @@
 __author__ = 'larisa'
 
-import glob
-import sys
-
 import wave
 import numpy as np
 import tgt
@@ -14,9 +11,14 @@ types = {
     4: np.int32
 }
 
-class DataReader(object):
 
-    def _get_frame (self, wav_file):
+class DataReader(object):
+    """ Data extracted from given .wav file (monochannel frames) and
+    corresponding .textGrid file (marked time intervals)
+    """
+
+    def _extract_frames(self, wav_file):
+        """Extracts mono-channel frames (2-byte samples) from audio file"""
         try:
             wav = wave.open(wav_file, mode="r")
             (nchannels, sampwidth, framerate, nframes, comptype, compname) = wav.getparams()
@@ -27,45 +29,47 @@ class DataReader(object):
         except Exception:
             (mono_samples, framerate, sampwidth) = (0, 0, 0)
 
-        return (mono_samples, framerate, sampwidth)
+        return mono_samples, framerate, sampwidth
 
-    def _check_textgrid_content(self, tiers):
-        empty_marker = True
-        for tier in tiers:
-            if tier.text != "":
-                empty_marker = False
-                break
-        return empty_marker
+    def _is_empty(self, tier):
+        """ Checks whether all intervals are marked as ""
+        """
+        for int in tier:
+            if int.text != "":
+                return False
+        return True
 
-    def _intervalGetter (self, textGrid_file):
+    def _extract_intervals(self, textGrid_file):
+        """ Gets intervals from textGrid file or returns 'error' in case of error
+        """
         if os.stat(textGrid_file).st_size == 0:
             return 'error'
         try:
             textgrid = tgt.io.read_textgrid(textGrid_file, encoding='utf-16')
-            tiers = textgrid.tiers[0].intervals
-            if self._check_textgrid_content(tiers):
+            intervals = textgrid.tiers[0].intervals
+            if self._is_empty(intervals):
                 print("empty", textGrid_file)
                 return 'error'
         except Exception:
             try:
                 textgrid = tgt.io.read_textgrid(textGrid_file, encoding='utf-8')
-                tiers = textgrid.tiers[0].intervals
-                if self._check_textgrid_content(tiers):
+                intervals = textgrid.tiers[0].intervals
+                if self._is_empty(intervals):
                     return 'error'
             except Exception as e:
-                tiers = 'error'
-                print(e.reason)
+                intervals = 'error'
+                print(e)
 
-        return tiers
+        return intervals
 
     def __init__(self, wavFile, textGridFile):
         super(DataReader, self).__init__()
-        (self._frames, self._framerate, self._sampwidth) = self._get_frame(wavFile)
-        self._intervals = self._intervalGetter(textGridFile)
+        self._frames, self._framerate, self._sampwidth = self._extract_frames(wavFile)
+        self._intervals = self._extract_intervals(textGridFile)
         self._wavFile = wavFile
         self._textGridFile = textGridFile
 
-    def getFrames (self):
+    def getFrames(self):
         return self._frames
 
     def getIntervals(self):
@@ -77,21 +81,17 @@ class DataReader(object):
     def getSampwidth(self):
         return self._sampwidth
 
-    def getErr (self):
-        if (self._framerate == self._sampwidth == 0):
-            print(self._wavFile)
-            return 1
-        if (self._intervals == 'error'):
-            return 1
+    def is_correct(self):
+        if self._framerate == self._sampwidth == 0:
+            print "incorrect: " + str(self._wavFile)
+            return False
+        if self._intervals == 'error':
+            return False
 
+        for interval in self.getIntervals():
+            if (hasattr(interval, '_end_time') == False or
+                        hasattr(interval, '_start_time') == False or
+                        hasattr(interval, 'text') == False):
+                return False
 
-        intervals = self.getIntervals()
-        for i in range(len(self.getIntervals())):
-
-            if (hasattr(intervals[i], '_end_time') == False or
-                hasattr(intervals[i], '_start_time') == False or
-                hasattr(intervals[i], 'text') == False):
-
-                return 1
-
-        return 0
+        return True
