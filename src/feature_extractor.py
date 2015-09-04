@@ -1,64 +1,123 @@
 __author__ = 'misha'
 
-# import file_rename
-# file_rename.rename('/home/misha/Downloads/markups/word_praats')
-# file_rename.rename('/home/misha/Downloads/markups/paradigm_praats')
-
-# ---------------------
-from textgrid import *
-import os
-
-# os.chdir('/home/misha/Downloads/test/markups')
-# path = u'.'
-# for root, dirs, files in os.walk(path, True):
-#     print files
-#     name = files[3]
-#     file = TextGrid(name)
-#     file.read(name)
-#     tiers = file.tiers
-#     print name
-#     for tier in file.tiers:
-#         print tier.name
-#         for inter in tier.intervals:
-#             print '\t'.join([str(inter.mark), str(inter.minTime), str(inter.maxTime)])
-
-import ocrolib
-
 import pylab
-import wave
 import numpy as np
-from scipy.io import wavfile
-import os
+from scikits.talkbox.features import mfcc
+from sklearn import preprocessing
 
-def extract_specgrams(data):
-    intervals = data.getIntervals()
-    frames_array = data.getFrames()
-    fs = data.getFramerate()
-    assert fs == 44100
-    nfft = 254
-    time_step = 0.5*nfft/fs
 
-    # generate specgram
-    Pxx, freqs, t, plot = pylab.specgram(
-        frames_array,
-        NFFT=nfft,
-        Fs=fs,
-        detrend=pylab.detrend_none,
-        window=pylab.window_hanning,
-        # sides='twosided',
-        noverlap=int(nfft*0.5))
+class FeatureExtractor:
+    """ Container for feature to label mapping and label alphabet
+    extracted from given marked up files.
+    """
 
-    # creating sequence of (feature, label)
-    feature_label = []
-    for interval in intervals:
-        start = interval._start_time / time_step
-        end = interval._end_time / time_step
-        features = Pxx[:, start:end]
-        label = interval.text
-        for i in xrange(np.shape(features)[1]):
-            feature_label.append((features[:, i], label))
+    def __init__(self, parsedFiles):
+        self.alphabet = self.extract_alphabet(parsedFiles)
+        self.feature_label = []
+        self.parsed_files = parsedFiles
+        self.mfcc_feature_label = None
+        self.spec_feature_label = None
 
-    return feature_label
+    def extract_alphabet(self, parsedFiles):
+        letters = []
+        for file in parsedFiles:
+            for interval in file.getIntervals():
+                letters.append(interval.text)
+
+        alph = list(np.unique(letters))
+        dict = {}
+        for i in xrange(len(alph)):
+            dict[alph[i]] = i+1
+
+        return dict
+
+    def extract_spectrogram_features(self, data):
+        intervals = data.getIntervals()
+        frames_array = data.getFrames()
+        fs = data.getFramerate()
+        if fs != 44100:
+            print "different framerate: "+str(fs)
+        nfft = 254
+        time_step = 0.5*nfft/fs
+
+        # generating specgram
+        Pxx, freqs, t, plot = pylab.specgram(
+            frames_array,
+            NFFT=nfft,
+            Fs=fs,
+            detrend=pylab.detrend_none,
+            window=pylab.window_hanning,
+            # sides='twosided',
+            noverlap=int(nfft*0.5))
+
+        # creating sequence of (feature, label)
+        xmax = np.max(Pxx)
+        feature_label = ([], [])
+        for n, interval in enumerate(intervals):
+            start = interval._start_time / time_step
+            end = interval._end_time / time_step
+            features = Pxx[:, start:end]
+            label = interval.text
+            for i in xrange(np.shape(features)[1]):
+                # FIXME
+                # I'm not sure whether we should normalize it like that!!!
+                feature_label[0].append(features[:, i]/xmax)
+                feature_label[1].append(self.alphabet[label])
+
+        # if np.shape(feature_label[0])[1] != 128:
+        #     print "short interval"
+        return feature_label
+
+    def extract_mfcc_feature_vec(self, data):
+        features = np.zeros((1, 13))
+        feat_label_vec = []
+        p = 0
+        for interval in data.getIntervals():
+            start = interval._get_start_time()
+            end = interval._get_end_time()
+            step = int((end - start) * data.getFramerate())
+            letter = interval.text
+            frames_in_interval = []
+
+            for k in range(step):
+                frames_in_interval.append(data.getFrames()[p])
+                p += 1
+            ceps = []
+            try:
+                ceps = mfcc(frames_in_interval)[0]
+                # print("frames in int", len(frames_in_interval))
+                # print("ceps" , len(ceps))
+            except Exception:
+                print("ceps=0", data._textGridFile)
+
+            for i in range(len(ceps)):
+                normalized_cep = preprocessing.normalize([ceps[i]])
+                features = np.append(features, normalized_cep, axis=0)
+                feat_label_vec.append(self.alphabet[letter])
+
+        features = features[1:, :]
+        # print("feat size", len(features))
+        # print("lebel size", len(feat_label_vec))
+        return (features, np.array(feat_label_vec))
+
+    def get_alphabet(self):
+        return self.alphabet
+
+    def get_mfcc_features(self):
+        if self.mfcc_feature_label is None:
+            self.mfcc_feature_label = []
+            for data in self.parsed_files:
+                self.mfcc_feature_label.append(self.extract_mfcc_feature_vec(data))
+
+        return self.mfcc_feature_label
+
+    def get_spec_features(self):
+        if self.spec_feature_label is None:
+            self.spec_feature_label = []
+            for data in self.parsed_files:
+                self.spec_feature_label.append(self.extract_spectrogram_features(data))
+
+        return self.spec_feature_label
 
 
 

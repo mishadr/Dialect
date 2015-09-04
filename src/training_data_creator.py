@@ -5,8 +5,6 @@ from scikits.talkbox.features import mfcc
 from sklearn import preprocessing
 
 
-# from features import mfcc as MFCC
-
 class TrainingDataCreator(object):
     """ Training data: sequence of feature vectors and sequence of corresponding IFA symbols
     """
@@ -33,8 +31,8 @@ class TrainingDataCreator(object):
             ceps = []
             try:
                 ceps = mfcc(frames_in_interval)[0]
-                print("frames in int", len(frames_in_interval))
-                print("ceps" , len(ceps))
+                # print("frames in int", len(frames_in_interval))
+                # print("ceps" , len(ceps))
             except Exception:
                 print("ceps=0", data._textGridFile)
 
