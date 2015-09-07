@@ -1,7 +1,3 @@
-from __builtin__ import sum
-from gi.overrides.GLib import get_current_time
-from scipy.constants.constants import alpha
-
 __author__ = 'larisa'
 
 #ecoding: utf8
@@ -12,7 +8,6 @@ from nn import *
 import pickle
 
 import pdb
-import os
 import fnmatch
 from feature_extractor import *
 from ocrolib.lstm import *
@@ -47,7 +42,7 @@ class MySeqRecognizer(SeqRecognizer):
         self.outputs = array(self.lstm.forward(xs))
         # CTC alignment
         self.targets = array(make_target(cs,self.No))
-        self.aligned = array(ctc_align_targets(self.outputs,self.targets,debug=1))
+        self.aligned = array(ctc_align_targets(self.outputs,self.targets))
         # propagate the deltas back
         deltas = self.aligned-self.outputs
         self.lstm.backward(deltas)
@@ -93,7 +88,7 @@ if __name__ == "__main__":
 
     # parsing data
     parsedFiles = []
-    for i in range(750):
+    for i in range(160):
         parsedData = DataReader(sounds[i], textGrids[i])
         if parsedData.is_correct():
             parsedFiles.append(parsedData)
@@ -131,6 +126,14 @@ if __name__ == "__main__":
     feat_labs = array(feature_extractor.get_mfcc_features())
     print [np.shape(xs) for (xs, cs) in feat_labs]
 
+    # splitting randomly into train and test datasets
+    random_split = cross_validation.ShuffleSplit(len(feat_labs), n_iter=10000, test_size=0.10, random_state=0)
+
+    print "target sequences:"
+    for p in parsedFiles:
+        print ([alphabet[i.text] for i in p.getIntervals()])
+
+
     # ---------------- LSTM learning
 
     Ni = 13
@@ -141,11 +144,7 @@ if __name__ == "__main__":
     #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
     #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
     #                            Softmax(2*Ns, No)])
-    model.setLearningRate(0.0001, 0.9)
-
-    print "target sequences:"
-    for p in parsedFiles:
-        print ([alphabet[i.text] for i in p.getIntervals()])
+    model.setLearningRate(0.0001, 0.5)
 
     def make_targets(classes):
         res = []
@@ -156,8 +155,6 @@ if __name__ == "__main__":
         return res
 
 
-    # splitting randomly into train and test datasets
-    random_split = cross_validation.ShuffleSplit(len(feat_labs), n_iter=10000, test_size=0.1, random_state=0)
     train_sq_error_log = []
     test_sq_error_log = []
     iteration = 0
@@ -166,6 +163,7 @@ if __name__ == "__main__":
 
         # training
         lev_dist = 0
+        total_dist = 0
         sq_error = []
         for (xs, cs) in feat_labs[train_index]:
             ys = np.array(make_targets(cs))
@@ -174,18 +172,21 @@ if __name__ == "__main__":
             pred = argmax(answer, axis=1)+1
             # print ", ".join([str(pred), str(cs)])
             lev_dist += edist.levenshtein(cs, pred)
-        print "TRAIN. total levenshtein dist: " + str(lev_dist)
+            total_dist += len(cs)
+        accuracy = 100 - 100.0 * lev_dist/total_dist
+        print "TRAIN. total levenshtein dist: " + str(lev_dist) + "\t accuracy: " + str(accuracy)
         print "TRAIN. square error: " + str(sq_error)
         train_sq_error_log.append(sum(sq_error))
 
-        figure("sum of errors. 388+43 utter, LR(0.0001, 0.9), LSTM(13, 500, 84)"); clf();
+        figure("sum of errors. 10, 13 500 21"); clf();
         subplot(211)
         plot(array(train_sq_error_log), "r")
         # plot(ndarray((len(sq_error), ), dtype=float, buffer=array(sq_error)), "r")
 
         # testing
-        if iteration%1 == 0:
+        if iteration%2 == 0:
             lev_dist = 0
+            total_dist = 0
             sq_error = []
             for (xs, cs) in feat_labs[test_index]:
                 ys = np.array(make_targets(cs))
@@ -193,7 +194,9 @@ if __name__ == "__main__":
                 sq_error.append(sum((ys-answer)**2)/len(cs))
                 pred = argmax(answer, axis=1)+1
                 lev_dist += edist.levenshtein(cs, pred)
-            print "TEST. total levenshtein dist: " + str(lev_dist)
+                total_dist += len(cs)
+            accuracy = 100 - 100.0 * lev_dist/total_dist
+            print "TEST. total levenshtein dist: " + str(lev_dist) + "\t accuracy: " + str(accuracy)
             print "TEST. square error: " + str(sq_error)
             test_sq_error_log.append(sum(sq_error))
 
@@ -212,8 +215,8 @@ if __name__ == "__main__":
 
     # # ---------------- LSTM learning with CTC alignment
     #
-    # Ni = 128
-    # Ns = 100
+    # Ni = 13
+    # Ns = 300
     # No = len(alphabet)+1
     # model = MySeqRecognizer(Ni, Ns, No)
     #
@@ -221,14 +224,59 @@ if __name__ == "__main__":
     # #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
     # #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
     # #                            Softmax(2*Ns, No)])
-    # model.lstm = Stacked([LSTM(Ni, Ns), LSTM(Ns, Ns),
-    #                       Softmax(Ns, No)])
-    # model.setLearningRate(0.001)
+    # model.lstm = Stacked([MyParallel(LSTM(Ni, Ns), Reversed(LSTM(Ni, Ns))),
+    #                       Softmax(2*Ns, No)])
+    # model.setLearningRate(0.0001, 0.9)
     #
-    # print "target sequences:"
-    # for p in parsedFiles:
-    #     print ([alphabet[i.text] for i in p.getIntervals()])
+    # train_sq_error_log = []
+    # test_sq_error_log = []
+    # train_lev_dist_log = []
+    # test_lev_dist_log = []
+    # iteration = 0
+    # for train_index, test_index in random_split:
+    #     print "iteration " + str(iteration)
     #
+    #     # training
+    #     lev_dist = 0
+    #     total_dist = 0
+    #     sq_error = []
+    #     for (xs, cs) in feat_labs[train_index]:
+    #         pred = model.trainSequence(np.array(xs), np.array(cs))
+    #         sq_error.append(model.error/len(cs))
+    #         lev_dist += edist.levenshtein(cs, pred)
+    #         # total_dist += len(cs)
+    #     # accuracy = 100 - 100.0 * lev_dist/total_dist
+    #     print "TRAIN. total levenshtein dist: " + str(lev_dist)
+    #     print "TRAIN. square error: " + str(sq_error)
+    #     train_sq_error_log.append(sum(sq_error))
+    #     train_lev_dist_log.append(lev_dist)
+    #
+    #     figure("sum of squared deltas. 388+43, 13 300-300 84 CTC"); clf();
+    #     subplot(311)
+    #     plot(array(train_sq_error_log), "r")
+    #     subplot(312)
+    #     plot(array(train_lev_dist_log), "b")
+    #     # plot(ndarray((len(sq_error), ), dtype=float, buffer=array(sq_error)), "r")
+    #
+    #     # testing
+    #     if iteration%2 == 0:
+    #         lev_dist = 0
+    #         total_dist = 0
+    #         sq_error = []
+    #         for (xs, cs) in feat_labs[test_index]:
+    #             pred = model.trainSequence(np.array(xs), np.array(cs))
+    #             sq_error.append(model.error/len(cs))
+    #             lev_dist += edist.levenshtein(cs, pred)
+    #         print "TEST. total levenshtein dist: " + str(lev_dist)
+    #         print "TEST. square error: " + str(sq_error)
+    #         test_sq_error_log.append(sum(sq_error))
+    #         test_lev_dist_log.append(lev_dist)
+    #
+    #     subplot(313)
+    #     plot(array(test_lev_dist_log), "g")
+    #     ginput(1,0.01);
+    #     iteration += 1
+
     # for i in xrange(200):
     #     print "iteration " + str(i)
     #     for (xs, cs) in feat_labs:

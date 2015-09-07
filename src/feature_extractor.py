@@ -62,7 +62,7 @@ class FeatureExtractor:
                 # FIXME
                 # I'm not sure whether we should normalize it like that!!!
                 feature_label[0].append(features[:, i]/xmax)
-                feature_label[1].append(self.alphabet[label])
+                feature_label[1].append(self.alphabet[label]) # TODO shift this to switch targets
 
         # if np.shape(feature_label[0])[1] != 128:
         #     print "short interval"
@@ -93,7 +93,7 @@ class FeatureExtractor:
             for i in range(len(ceps)):
                 normalized_cep = preprocessing.normalize([ceps[i]])
                 features = np.append(features, normalized_cep, axis=0)
-                feat_label_vec.append(self.alphabet[letter])
+                feat_label_vec.append(self.alphabet[letter]) # TODO shift this to switch targets
 
         features = features[1:, :]
         # print("feat size", len(features))

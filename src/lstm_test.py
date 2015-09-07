@@ -30,10 +30,8 @@ print str(get_current_time())
 
 
 
-array = list(arange(20).reshape((5,4)))
-ind = list([3,4,0,2])
-for a in array[ind]:
-    print a
+array = (arange(20))
+print all(array > 5)
 
 
 
