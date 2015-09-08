@@ -84,7 +84,7 @@ class FeatureExtractor:
                 p += 1
             ceps = []
             try:
-                ceps = mfcc(frames_in_interval)[0]
+                ceps = mfcc(input=frames_in_interval, fs=data.getFramerate())[0]
                 # print("frames in int", len(frames_in_interval))
                 # print("ceps" , len(ceps))
             except Exception:

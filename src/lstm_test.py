@@ -30,11 +30,6 @@ print str(get_current_time())
 
 
 
-array = (arange(20))
-print all(array > 5)
-
-
-
 # dataset
 # xs, ys = ([], [])
 # for i in xrange(50):
@@ -51,43 +46,54 @@ print all(array > 5)
 # plot(xs, "y.")
 # plot(ys, "g")
 
-# Ni = 10
-# Ns = 100
-# No = 10
-# model = Stacked([LSTM(Ni, Ns), LSTM(Ns, Ns), Softmax(Ns, No)])
-# model.setLearningRate(0.001, 0.9)
-#
-# # model.lstm = Stacked([MyParallel(LSTM(Ni, Ns), Reversed(LSTM(Ni, Ns))),
-# #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
-# #                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
-# #                            Softmax(2*Ns, No)])
-# # model.setLearningRate(0.001)
-#
-# xs, ys = ([], [])
-# for k in xrange(10):
-#     array = np.random.random(10)
-#     xs.append(array)
-#     a = argmax(array)
-#     y = zeros((10,))
-#     y[a] = 1.0
-#     ys.append(y)
-#
-# xs = np.array(xs)
-# ys = np.array(ys)
-#
-#
-# for i in xrange(500):
-#     pred = model.train(xs, ys)
-#     sq_error = sum((ys-pred)**2)
-#     print sq_error
-#     if i%300 == 0:
-#         print pred
-#         # plot(np.array(pred), "r")
-#         # show()
+Ni = 10
+Ns = 30
+No = 10
+model = Stacked([LSTM(Ni, Ns), LSTM(Ns, Ns), Softmax(Ns, No)])
+model.setLearningRate(0.001, 0.9)
 
-# reading model from file
-with open("../models/lstm_model.1", 'r') as file:
-    model = pickle.load(file)
+# model.lstm = Stacked([MyParallel(LSTM(Ni, Ns), Reversed(LSTM(Ni, Ns))),
+#                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
+#                            MyParallel(LSTM(2*Ns, Ns), Reversed(LSTM(2*Ns, Ns))),
+#                            Softmax(2*Ns, No)])
+# model.setLearningRate(0.001)
+
+dataset = []
+for s in xrange(30):
+    xs, ys = ([], [])
+    for k in xrange(10):
+        array = np.random.random(10)
+        xs.append(array)
+        a = argmax(array)
+        y = zeros((10,))
+        y[a] = 1.0
+        ys.append(y)
+
+    xs = np.array(xs)
+    ys = np.array(ys)
+    dataset.append((xs, ys))
+
+
+sq_error_log = []
+for i in xrange(500):
+    sq_error = 0
+    for (xs, ys) in dataset:
+        pred = model.train(xs, ys)
+        sq_error += sum((ys-pred)**2)
+    print sq_error
+    sq_error_log.append(sq_error)
+    if i%5 == 0:
+        figure("square error"); clf();
+        plot(np.array(sq_error_log), "r")
+    ginput(1,0.01);
+    if i%300 == 0:
+        print pred
+        # plot(np.array(pred), "r")
+        # show()
+
+# # reading model from file
+# with open("../models/lstm_model.1", 'r') as file:
+#     model = pickle.load(file)
 
 correct = 0
 total = 100
