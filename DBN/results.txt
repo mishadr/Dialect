@@ -1,4 +1,5 @@
 --- context size varying
+(40% used for test)
 
 99 utterances, 0 context, DBN[13, 512, 512, 512, 512, 48], 12 epochs: accuracy=0.285305
 99 utterances, 1 context, DBN[39, 512, 512, 512, 512, 48], 12 epochs: accuracy=0.472697
@@ -14,10 +15,78 @@
 99 utterances, 12 context, DBN[325, 512, 512, 512, 512, 48], 12 epochs: accuracy=0.529815
 
 --- layers varying
+(40% used for test)
 
 99 utterances, 9 context, DBN[247, 256, 48], 12 epochs: accuracy=0.445458
 99 utterances, 9 context, DBN[247, 512, 48], 12 epochs: accuracy=0.459473
 99 utterances, 9 context, DBN[247, 1024, 48], 12 epochs: accuracy=0.467747
 99 utterances, 9 context, DBN[247, 2048, 48], 12 epochs: accuracy=0.486153
+
 99 utterances, 9 context, DBN[247, 256, 256, 48], 12 epochs: accuracy=0.680176
 99 utterances, 9 context, DBN[247, 512, 512, 48], 12 epochs: accuracy=0.748734
+99 utterances, 9 context, DBN[247, 1024, 1024, 48], 12 epochs: accuracy=0.797028
+99 utterances, 9 context, DBN[247, 2048, 2048, 48], 12 epochs: accuracy=0.806484
+
+99 utterances, 9 context, DBN[247, 256, 256, 256, 48], 12 epochs: accuracy=0.742317
+99 utterances, 9 context, DBN[247, 512, 512, 512, 48], 12 epochs: accuracy=0.852246
+99 utterances, 9 context, DBN[247, 1024, 1024, 1024, 48], 12 epochs: accuracy=0.876900
+99 utterances, 9 context, DBN[247, 2048, 2048, 2048, 48], 12 epochs: accuracy=0.003884
+295 utterances, 7 context, DBN[195, 2048, 2048, 2048, 70], 12 epochs: accuracy=0.836887
+
+99 utterances, 9 context, DBN[247, 256, 256, 256, 256, 48], 12 epochs: accuracy=0.712428
+99 utterances, 9 context, DBN[247, 512, 512, 512, 512, 48], 12 epochs: accuracy=0.832827
+99 utterances, 9 context, DBN[247, 1024, 1024, 1024, 1024, 48], 12 epochs: accuracy=0.848024
+99 utterances, 9 context, DBN[247, 2048, 2048, 2048, 2048, 48], 12 epochs: accuracy=0.003884
+
+99 utterances, 9 context, DBN[247, 256, 256, 256, 256, 256, 48], 12 epochs: accuracy=0.592199
+99 utterances, 9 context, DBN[247, 512, 512, 512, 512, 512, 48], 12 epochs: accuracy=0.815434
+99 utterances, 9 context, DBN[247, 1024, 1024, 1024, 1024, 1024, 48], 12 epochs: accuracy=0.801587
+
+--- early stopping
+(40% used for test, 40% of rest used for held out validation)
+
+49 utterances, 7 context, DBN[195, 512, 512, 512, 35], 20 epochs: accuracy=0.748904
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 20 epochs: accuracy=0.753015
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 30 epochs: accuracy=0.820589
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 40 epochs: accuracy=0.832510
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 50 epochs: accuracy=0.834978
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 60 epochs: accuracy=0.834703
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 80 epochs: accuracy=0.835526
+99 utterances, 7 context, DBN[195, 512, 512, 512, 48], 100 epochs: accuracy=0.835389
+10 utterances, 10 context, DBN[273, 256, 256, 256, 21], 80 epochs: accuracy=0.697907
+10 utterances, 10 context, DBN[273, 256, 256, 256, 21], 80 epochs: accuracy=0.697907
+
+99 utterances, 10 context, DBN[273, 512, 512, 512, 512, 48], 40 epochs: accuracy=0.868390
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 40 epochs: accuracy=0.874037
+99 utterances, 9 context, DBN[247, 1024, 1024, 1024, 48], 40 epochs: accuracy=0.878757
+
+--- pretraining epochs varying
+
+29 utterances, 0 context, DBN[13, 256, 256, 256, 32], 15 epochs: accuracy=0.187013
+29 utterances, 2 context, DBN[65, 256, 256, 256, 32], 15 epochs: accuracy=0.181537
+29 utterances, 0 context, DBN[13, 512, 512, 512, 32], 15 epochs: accuracy=0.187013
+
+495 utterances, 9 context, DBN[247, 1024, 1024, 1024, 143], 15 epochs: accuracy=0.000087
+495 utterances, 9 context, DBN[247, 1024, 1024, 1024, 143], 15 epochs: accuracy=0.000087
+
+595 utterances, 0 context, DBN[13, 1024, 1024, 1024, 167], 10 epochs: accuracy=0.183730
+595 utterances, 0 context, DBN[13, 1024, 1024, 1024, 167], 10 epochs: accuracy=0.079302
+595 utterances, 0 context, DBN[13, 1024, 1024, 1024, 167], 10 epochs: accuracy=0.079302
+595 utterances, 0 context, DBN[13, 1024, 1024, 1024, 167], 10 epochs: accuracy=0.079302
+
+--- trying to predict
+
+295 utterances, 9 context, DBN[247, 1024, 1024, 1024, 70], 0 pretrain_epochs, 15 epochs: accuracy=0.919470
+295 utterances, 9 context, DBN[247, 1024, 1024, 1024, 70], 0 pretrain_epochs, 40 epochs: accuracy=0.946197
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs: accuracy=0.808771
+295 utterances, 10 context, DBN[273, 1024, 1024, 1024, 70], 0 pretrain_epochs, 15 epochs: accuracy=0.799909
+295 utterances, 10 context, DBN[273, 1024, 1024, 1024, 70], 0 pretrain_epochs, 15 epochs: accuracy=0.916046
+295 utterances, 10 context, DBN[273, 1024, 1024, 1024, 70], 0 pretrain_epochs, 15 epochs: accuracy=0.484841
+
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs, validation True: accuracy=0.808771
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs, validation True: accuracy=0.812681
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs, validation True: accuracy=0.788373
+97 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs, validation True: accuracy=0.813071
+292 utterances, 10 context, DBN[273, 1024, 1024, 1024, 70], 0 pretrain_epochs, 15 epochs, validation False: accuracy=0.918724
+97 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 15 epochs, validation True: accuracy=0.814106
+99 utterances, 10 context, DBN[273, 1024, 1024, 1024, 48], 0 pretrain_epochs, 10 epochs, validation True: accuracy=0.695733

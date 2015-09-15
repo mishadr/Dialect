@@ -20,9 +20,18 @@ class FeatureExtractor:
 
     def extract_alphabet(self, parsedFiles):
         letters = []
+        # letters_counter = {}
         for file in parsedFiles:
             for interval in file.getIntervals():
-                letters.append(interval.text)
+                let = interval.text
+                letters.append(let)
+                # if letters_counter.has_key(let):
+                #     letters_counter[interval.text] += 1
+                # else:
+                #     letters_counter[interval.text] = 1
+
+        # for key, value in letters_counter.items():
+        #     print u"%d times of %s" % (value, key)
 
         alph = list(np.unique(letters))
         dict = {}
@@ -94,6 +103,7 @@ class FeatureExtractor:
                 normalized_cep = preprocessing.normalize([ceps[i]])
                 features = np.append(features, normalized_cep, axis=0)
                 feat_label_vec.append(self.alphabet[letter]) # TODO shift this to switch targets
+                # feat_label_vec.append(self.alphabet[letter]) # TODO shift this to switch targets
 
         features = features[1:, :]
         # print("feat size", len(features))
