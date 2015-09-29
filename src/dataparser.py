@@ -1,5 +1,5 @@
 __author__ = 'larisa'
-
+# ecoding: utf8
 import wave
 import numpy as np
 import tgt
@@ -64,9 +64,28 @@ class DataReader(object):
                 print(e)
                 return 'error'
 
+        # exclude rare symbols
+        exclude = [
+            # 1 time:
+            u"ɨ:", u"tt", u"[э]", u"p˙", u"(15г)", u"җ'", u"tɕ", u"tt\^j", u"eˁ", u"oa", u"cʃ", u"(придыхание)",
+            u"т-т", u"(21г)", u"нн", u"ъ(о)", u"b\^j", u"призв.", u"(29б)", u"ç", u"(50б)", u"ā", u"сс", u"кк",
+            u"(9д)", u"ea", u"(5е)", u"n(?)", u"х'", u"[БАА: 4]", u"(12г)", u"(4и)", u"\aeu", u"dʒ", u"d’҇z’",
+            u"d\^j", u"uj", u"\ri", u"\ct\:f", u"oj", u"ʃ'", u"(смычка d)", u"aˤ", u"yˁ:", u"(11к)", u"b'",
+            u"(призв.)", u"\aeo", u"[ВЗТ]", u"ʥ", u"\o-u", u"éo", u"\\u-\:f", u"\cxx", u"ЛЗС", u"\tf", u"(24б)",
+            u"jа[иа]", u"(25д)", u"дж'", u"Z", u"e\:f", u"ɦ", u"ue", u"ua", u"əó", u"io", u"ó:", u"P", u"е",
+            u"(l\^j)", u"(глух. пр.)", u"(22в)", u"(19в)", u"(ЛАЛ)", u"кап", u"ӧ", u"ts\^j", u"ə:", u"(э)",
+            u"[БАА: 3]", u"(1г)",
+            # 2 times:
+            u"øˤ", u"eí", u"\h^\^w", u"[БАА: 1]", u"\sh", u"jɔ:", u"β", u"eó", u"o\:f", u"[БАА: 2]", u"ɔi",
+            u"áj", u"w\ff", u"χ (γ)", u"uo", u"б'", u"\o-\:f", u"\nj", u"aj", u"f'", u"úi", u"új", u"δ", u"с",
+            u"óe", u"uˁ", u"aˁ"]
+        for int in intervals:
+            if int.text in exclude:
+                return 'error'
+
         # checking whether last interval ends further than frames end
         interval_end = intervals[-1]._end_time
-        frame_end = 1.0*len(self._frames)/self._framerate
+        frame_end = 1.0 * len(self._frames) / self._framerate
         if interval_end > frame_end + 0.0001:
             return 'error'
 

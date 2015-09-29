@@ -1,9 +1,14 @@
+from matplotlib import cm
+from scipy.signal import butter, lfilter, freqz
+
 __author__ = 'misha'
 
 import pylab
 import numpy as np
 from scikits.talkbox.features import mfcc
 from sklearn import preprocessing
+
+import features as pspf
 
 
 class FeatureExtractor:
@@ -15,28 +20,37 @@ class FeatureExtractor:
         self.alphabet = self.extract_alphabet(parsedFiles)
         self.feature_label = []
         self.parsed_files = parsedFiles
-        self.mfcc_feature_label = None
+        self._mfcc_feature_label = None
         self.spec_feature_label = None
 
     def extract_alphabet(self, parsedFiles):
         letters = []
-        # letters_counter = {}
+        letters_counter = {}
         for file in parsedFiles:
             for interval in file.getIntervals():
                 let = interval.text
                 letters.append(let)
-                # if letters_counter.has_key(let):
-                #     letters_counter[interval.text] += 1
-                # else:
-                #     letters_counter[interval.text] = 1
+                if let in letters_counter:
+                    letters_counter[interval.text] += 1
+                else:
+                    letters_counter[interval.text] = 1
 
-        # for key, value in letters_counter.items():
-        #     print u"%d times of %s" % (value, key)
+        letters_stat = {}
+        for key, count in letters_counter.items():
+            if count in letters_stat:
+                letters_stat[count].append(key)
+            else:
+                letters_stat[count] = [key]
+
+        # self.exclude = letters_stat[1]
+
+        # for count, items in letters_stat.items():
+        #     print u"%d times of: %s" % (count, u', '.join(items))
 
         alph = list(np.unique(letters))
         dict = {}
         for i in xrange(len(alph)):
-            dict[alph[i]] = i+1
+            dict[alph[i]] = i + 1
 
         return dict
 
@@ -45,9 +59,35 @@ class FeatureExtractor:
         frames_array = data.getFrames()
         fs = data.getFramerate()
         if fs != 44100:
-            print "different framerate: "+str(fs)
-        nfft = 254
-        time_step = 0.5*nfft/fs
+            print "different framerate: " + str(fs)
+        nfft = 126
+        time_step = 0.5 * nfft / fs
+
+        # cut voice frequencies of [300, 4000] Hz
+        # low_freq = int(0 * (nfft/2+1) / (fs/2.))
+        # high_freq = int(15000 * (nfft/2+1) / (fs/2.))
+        low_freq = 0
+        high_freq = nfft/2 + 1
+
+        # Applying low-pass filter
+
+        def butter_lowpass(cutoff, fs, order=5):
+            nyq = 0.5 * fs
+            normal_cutoff = cutoff / nyq
+            b, a = butter(order, normal_cutoff, btype='low', analog=False)
+            return b, a
+
+        def butter_lowpass_filter(data, cutOff, fs, order=4):
+            b, a = butter_lowpass(cutOff, fs, order=order)
+            y = lfilter(b, a, data)
+            return y
+
+        frames_array = butter_lowpass_filter(frames_array, cutOff=15000, fs=fs, order=10)
+
+        # DWT
+
+        # import pywt
+        # c, d = pywt.dwt(frames_array, 'db1')
 
         # generating specgram
         Pxx, freqs, t, plot = pylab.specgram(
@@ -57,28 +97,28 @@ class FeatureExtractor:
             detrend=pylab.detrend_none,
             window=pylab.window_hanning,
             # sides='twosided',
-            noverlap=int(nfft*0.5))
+            noverlap=int(nfft * 0.5),
+            # pad_to=
+            )
 
         # creating sequence of (feature, label)
-        xmax = np.max(Pxx)
-        feature_label = ([], [])
+        features_vectors, labels = [], []
         for n, interval in enumerate(intervals):
             start = interval._start_time / time_step
             end = interval._end_time / time_step
             features = Pxx[:, start:end]
             label = interval.text
             for i in xrange(np.shape(features)[1]):
-                # FIXME
-                # I'm not sure whether we should normalize it like that!!!
-                feature_label[0].append(features[:, i]/xmax)
-                feature_label[1].append(self.alphabet[label]) # TODO shift this to switch targets
+                features_vectors.append(features[:, i])
+                labels.append(self.alphabet[label])  # TODO shift this to switch targets
 
         # if np.shape(feature_label[0])[1] != 128:
         #     print "short interval"
-        return feature_label
+        return np.array(features_vectors), np.array(labels)
 
     def extract_mfcc_feature_vec(self, data):
-        features = np.zeros((1, 13))
+        n_ceps = 13
+        features = np.zeros((1, n_ceps))
         feat_label_vec = []
         p = 0
         for interval in data.getIntervals():
@@ -93,43 +133,107 @@ class FeatureExtractor:
                 p += 1
             ceps = []
             try:
-                ceps = mfcc(input=frames_in_interval, fs=data.getFramerate())[0]
+                rate = data.getFramerate()
+                # ceps = mfcc(input=frames_in_interval, fs=rate, nceps=n_ceps)[0]
+                ceps = pspf.mfcc(signal=np.array(frames_in_interval), samplerate=rate, numcep=n_ceps,
+                                 highfreq=8000, appendEnergy=True)
+                # , winlen=256./rate, winstep=160./rate)
                 # print("frames in int", len(frames_in_interval))
                 # print("ceps" , len(ceps))
             except Exception:
                 print("ceps=0", data._textGridFile)
+                raise
 
             for i in range(len(ceps)):
-                normalized_cep = preprocessing.normalize([ceps[i]])
-                features = np.append(features, normalized_cep, axis=0)
-                feat_label_vec.append(self.alphabet[letter]) # TODO shift this to switch targets
-                # feat_label_vec.append(self.alphabet[letter]) # TODO shift this to switch targets
+                #
+                # FIXME why to normalize here???
+                #
+                # normalized_cep = preprocessing.normalize([ceps[i]])
+                features = np.append(features, [ceps[i]], axis=0)
+                feat_label_vec.append(self.alphabet[letter])  # TODO shift this to switch targets
 
         features = features[1:, :]
         # print("feat size", len(features))
         # print("lebel size", len(feat_label_vec))
-        return (features, np.array(feat_label_vec))
+
+        def compute_deltas(arrays):
+            deltas = np.zeros(arrays.shape)
+            for i in xrange(1, len(arrays) - 1):
+                prev = arrays[i - 1]
+                next = arrays[i + 1]
+                deltas[i] = (next - prev) / 2
+            # first delta
+            this = arrays[0]
+            next = arrays[1]
+            deltas[0] = next - this
+            # last delta
+            this = arrays[len(arrays) - 1]
+            prev = arrays[len(arrays) - 2]
+            deltas[0] = this - prev
+            return deltas
+
+        # extending MFCCs with deltas
+        features_deltas = compute_deltas(features)
+        features_ddeltas = compute_deltas(features_deltas)
+
+        def zero_mean(array):
+            return (array - np.mean(array)) / (np.max(array) - np.min(array))
+
+        # # normalizing
+        # features = preprocessing.normalize(features)
+        # features_deltas = preprocessing.normalize(features_deltas)
+        # features_ddeltas = preprocessing.normalize(features_ddeltas)
+
+        # # zero-mean normalizing
+        # features = zero_mean(features)
+        # features_deltas = zero_mean(features_deltas)
+        # features_ddeltas = zero_mean(features_ddeltas)
+
+        n = len(features)
+        new_features = np.zeros((n, 3 * len(features[0])))
+        for i in xrange(n):
+            new_features[i] = np.append(features[i], [features_deltas[i], features_ddeltas[i]])
+
+        return (new_features, np.array(feat_label_vec))
 
     def get_alphabet(self):
         return self.alphabet
 
     def get_mfcc_features(self):
-        if self.mfcc_feature_label is None:
-            self.mfcc_feature_label = []
+        if self._mfcc_feature_label is None:
+            feat_labs = []  # (MFCC, d, dd, label)
+            self._mfcc_feature_label = []
             for data in self.parsed_files:
-                self.mfcc_feature_label.append(self.extract_mfcc_feature_vec(data))
+                self._mfcc_feature_label.append(self.extract_mfcc_feature_vec(data))
 
-        return self.mfcc_feature_label
+                # mfccs = [vec[0] for vec in feat_labs]
+                # d = [vec[1] for vec in feat_labs]
+                # dd = [vec[2] for vec in feat_labs]
+                #
+                # mfccs = preprocessing.normalize(mfccs)
+                # d = preprocessing.normalize(d)
+                # dd = preprocessing.normalize(dd)
+                #
+                # n = len(mfccs)
+                # new_features = np.zeros((n, 3 * len(mfccs[0])))
+                # for i in xrange(n):
+                #     new_features[i] = np.append(mfccs[i], [d[i], dd[i]])
+                #
+                # self._mfcc_feature_label = [(feat, label) for feat, (_, label) in new_features, feat_labs]
+
+        return self._mfcc_feature_label
 
     def get_spec_features(self):
         if self.spec_feature_label is None:
             self.spec_feature_label = []
             for data in self.parsed_files:
-                self.spec_feature_label.append(self.extract_spectrogram_features(data))
+                raw = self.extract_spectrogram_features(data)
+                # TODO what if  raw[0] - np.mean(raw[0])
+                data = (preprocessing.normalize(raw[0]), raw[1])
+                # data = ((raw[0] - np.mean(raw[0]))/(raw[0].max() - raw[0].min()), raw[1])
+                self.spec_feature_label.append(data)
 
         return self.spec_feature_label
-
-
 
 # dir = '/home/misha/Downloads/test/sounds'
 # os.chdir(dir)
@@ -209,4 +313,3 @@ class FeatureExtractor:
 # plt.xlabel('epochs')
 # plt.ylabel('error')
 # plt.ylim(0., 50)
-
