@@ -47,7 +47,7 @@ if __name__ == "__main__":
     print str(len(textGrids)) + " files read"
 
     # parsing data
-    n_utterances = 100
+    n_utterances = 500
     parsedFiles = []
     n_correct = 0
     for i in range(len(textGrids)):
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     #         print "At i=%d failed" % m
 
     model = dbn_trainer.train_and_test(alphabet, feat_labs, context_size=7, n_epochs=20,
-                                       n_epochs_pretrain=0, learn_rates_pretrain=0.0001, pretrain_momentum=0.0,
+                                       n_epochs_pretrain=6, learn_rates_pretrain=0.0001, pretrain_momentum=0.0,
                                        learn_rates=0.01, momentum=0.9, l2_costs=0.0001,
                                        validation_size=0.3, test_size=0.0)
 
@@ -173,14 +173,14 @@ if __name__ == "__main__":
     # with open("../models/dbn_model_100.1", 'r') as file:
     #     model = pickle.load(file)
     #
-    # acc_log = []
-    # for i in xrange(0, 40):
-    #     f = feat_labs[i]
-    #     # spec = spec_feat[i]
-    #     acc = dbn_trainer.predict(model, f)
-    #     acc_log.append(acc)
-    #
-    # print mean(acc_log)
+    acc_log = []
+    for i in xrange(0, 40):
+        f = feat_labs[i]
+        # spec = spec_feat[i]
+        acc = dbn_trainer.predict(model, f)
+        acc_log.append(acc)
+
+    print mean(acc_log)
 
     # # ----------------- LSTM training
     #

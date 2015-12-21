@@ -24,21 +24,23 @@ class MyDBN(DBN):
     added accuracy monitoring on held out validation data.
     """
 
-    def __init__(self, pretrain_momentum, *args, **kwargs):
+    def __init__(self, pretrain_momentum,
+        *args, **kwargs
+        ):
         super(MyDBN, self).__init__(*args, **kwargs)
 
         self.pretrain_momentum = pretrain_momentum
         self.fine_tune_momentum = self.momentum
 
-    def fit_with_validation(self, X, y, X_val, y_val, output_size):
+    def fit_with_validation(self, X_pre, X, y, X_val, y_val, output_size):
         if self.verbose:
             print "[DBN] fitting X.shape=%s" % (X.shape,)
         self._enc = LabelEncoder()
         # y = self._enc.fit_transform(y)
         # y = self._onehot(y)
-        y = _make_targets(y, output_size)
 
-        self.net_ = self._build_net(X, y)
+        y = _make_targets(y, output_size)
+        self.net_ = self._build_net(X, y)  # doesn't use the data, just its shape
 
         minibatches_per_epoch = self.minibatches_per_epoch
         if minibatches_per_epoch is None:
@@ -65,7 +67,7 @@ class MyDBN(DBN):
                 for epoch, err in enumerate(
                         self.net_.preTrainIth(
                             layer_index,
-                            self._minibatches(X),
+                            self._minibatches(X_pre),
                             self.epochs_pretrain[layer_index],
                             minibatches_per_epoch,
                         )):
@@ -156,9 +158,9 @@ class MyDBN(DBN):
 
 # class DBN_Model:
 def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
-                   n_hidden=3, hidden_size=1024, n_epochs=10, n_epochs_pretrain=0, test_size=0.4, validation_size=0.0,
-                   learn_rates=0.1, learn_rate_decays=0.99, momentum=0.9, l2_costs=0.0001, learn_rates_pretrain=0.0001,
-                   pretrain_momentum=0.0):
+                   n_hidden=3, hidden_size=1024, n_epochs=10, n_epochs_pretrain=0, pre_size=0.8, test_size=0.4,
+                   validation_size=0.0, learn_rates=0.1, learn_rate_decays=0.99, momentum=0.9, l2_costs=0.0001,
+                   learn_rates_pretrain=0.0001, pretrain_momentum=0.0):
     feat_len = np.shape(feat_labs[0][0])[1]
     input_size = feat_len * (2 * context_size + 1)
     output_size = len(alphabet)
@@ -191,6 +193,12 @@ def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
                   nesterov=True,
                   verbose=3, )
 
+    length = len(feat_labs)
+    pre_length = (1-pre_size)*length
+    X_pre, _ = _data_with_context(context_size, input_size, feat_labs)
+
+    feat_labs = feat_labs[:pre_length]
+
     random_split = cross_validation.ShuffleSplit(len(feat_labs), n_iter=1, test_size=test_size)
     for train_and_valid_index, test_index in random_split:
 
@@ -203,7 +211,7 @@ def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
             X_train, y_train = _data_with_context(context_size, input_size, train[train_index])
             X_val, y_val = _data_with_context(context_size, input_size, train[valid_index])
 
-            errs, accs = model.fit_with_validation(X_train, y_train, X_val, y_val, output_size)
+            errs, accs = model.fit_with_validation(X_pre, X_train, y_train, X_val, y_val, output_size)
 
         # for testing
         X_test, y_test = _data_with_context(context_size, input_size, feat_labs[test_index])
@@ -236,7 +244,7 @@ def _data_with_context(context_size, input_size, feat_lab):
         for c in ys:
             letters.add(c)
 
-    print len(letters)
+    print "different symbols: " + str(len(letters))
 
     X = []
     y = []

@@ -60,7 +60,7 @@ class FeatureExtractor:
         fs = data.getFramerate()
         if fs != 44100:
             print "different framerate: " + str(fs)
-        nfft = 126
+        nfft = 254
         time_step = 0.5 * nfft / fs
 
         # cut voice frequencies of [300, 4000] Hz
