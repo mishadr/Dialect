@@ -12,6 +12,7 @@ import numpy as np
 from time import time
 from datetime import timedelta
 # import nolearn.lasagne
+import nolearn
 from nolearn.dbn import DBN
 from sklearn import datasets
 from sklearn import cross_validation
@@ -19,41 +20,77 @@ from sklearn.cross_validation import train_test_split
 import os
 
 
-class MyDBN(DBN):
-    """ Extension of original fit. For possibility of early stopping when is being learned,
-    added accuracy monitoring on held out validation data.
+class DBN_Model(DBN):
+    """ Extension of original DBN:
+     * separate pretraining
+     * possibility of early stopping when is being learned
+     * accuracy monitoring on held out validation data
     """
 
-    def __init__(self, pretrain_momentum,
-        *args, **kwargs
-        ):
-        super(MyDBN, self).__init__(*args, **kwargs)
+    def __init__(self, input_size, output_size, context_size=8, n_hidden=3, hidden_size=1024,
+                 learn_rates=0.1, n_epochs=10, learn_rate_decays=0.99, momentum=0.9, l2_costs=0.0001):
 
-        self.pretrain_momentum = pretrain_momentum
-        self.fine_tune_momentum = self.momentum
+        self.input_size = input_size
+        self.output_size = output_size
+        self.context_size = context_size
 
-    def fit_with_validation(self, X_pre, X, y, X_val, y_val, output_size):
-        if self.verbose:
-            print "[DBN] fitting X.shape=%s" % (X.shape,)
+        # self.feat_len = np.shape(feat_labs[0][0])[1]
+        # self.input_size = self.feat_len * (2 * context_size + 1)
+        # self.output_size = len(alphabet)
+
+        layers = [self.input_size]
+        layers.extend(np.repeat(hidden_size, n_hidden))
+        # # botleneck layer
+        # layers.append(128)
+        layers.append(self.output_size)
+
+        super(DBN_Model, self).__init__(layer_sizes=layers,
+                                        learn_rates=learn_rates,
+                                        learn_rate_decays=learn_rate_decays,
+                                        momentum=momentum,
+                                        epochs=n_epochs,
+                                        l2_costs=l2_costs,
+                                        # dropouts=0.3,
+                                        minibatch_size=128,
+                                        nesterov=True,
+                                        verbose=3, )
+
+        self.fine_tune_momentum = momentum
+        self.pretrain_momentum = 0.0
+
         self._enc = LabelEncoder()
         # y = self._enc.fit_transform(y)
         # y = self._onehot(y)
 
-        y = _make_targets(y, output_size)
-        self.net_ = self._build_net(X, y)  # doesn't use the data, just its shape
+        v = self._vp
+
+        if self.verbose:  # pragma: no cover
+            print "[DBN] layers {}".format(self.layer_sizes)
+
+        if self.random_state is not None:
+            np.random.seed(self.random_state)
+
+        self.net_ = nolearn.dbn.buildDBN(
+            self.layer_sizes,
+            v(self.scales),
+            v(self.fan_outs),
+            self.output_act_funct,
+            self.real_valued_vis,
+            self.use_re_lu,
+            v(self.uniforms),
+            )
+
+        # self.net_ = self._build_net(X_pre)  # doesn't use the data, just its shape
+
+    def pretrain(self, X_pre):
+        if self.verbose:
+            print "[DBN] fitting X.shape=%s" % (X_pre.shape,)
 
         minibatches_per_epoch = self.minibatches_per_epoch
         if minibatches_per_epoch is None:
-            minibatches_per_epoch = X.shape[0] / self.minibatch_size
-
-        loss_funct = self.loss_funct
-        if loss_funct is None:
-            loss_funct = self._num_mistakes
+            minibatches_per_epoch = X_pre.shape[0] / self.minibatch_size
 
         errors_pretrain = self.errors_pretrain_ = []
-        losses_fine_tune = self.losses_fine_tune_ = []
-        errors_fine_tune = self.errors_fine_tune_ = []
-
         self.momentum = self.pretrain_momentum
 
         if self.epochs_pretrain:
@@ -81,6 +118,27 @@ class MyDBN(DBN):
                     if self.pretrain_callback is not None:
                         self.pretrain_callback(
                             self, epoch + 1, layer_index)
+
+    def fit_with_validation(self, X, y, X_val, y_val, output_size):
+        if self.verbose:
+            print "[DBN] fitting X.shape=%s" % (X.shape,)
+
+        y = _make_targets(y, output_size)
+        if self.layer_sizes[-1] == -1 and y is not None:  # n_classes
+            self.layer_sizes[-1] = y.shape[1]
+        if self.verbose:  # pragma: no cover
+            print "[DBN] layers {}".format(self.layer_sizes)
+
+        minibatches_per_epoch = self.minibatches_per_epoch
+        if minibatches_per_epoch is None:
+            minibatches_per_epoch = X.shape[0] / self.minibatch_size
+
+        loss_funct = self.loss_funct
+        if loss_funct is None:
+            loss_funct = self._num_mistakes
+
+        losses_fine_tune = self.losses_fine_tune_ = []
+        errors_fine_tune = self.errors_fine_tune_ = []
 
         # # setting another minibatch size
         # self.minibatch_size = 32
@@ -156,48 +214,45 @@ class MyDBN(DBN):
         return - float(mistakes) / len(y) + 1
 
 
-# class DBN_Model:
-def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
-                   n_hidden=3, hidden_size=1024, n_epochs=10, n_epochs_pretrain=0, pre_size=0.8, test_size=0.4,
-                   validation_size=0.0, learn_rates=0.1, learn_rate_decays=0.99, momentum=0.9, l2_costs=0.0001,
-                   learn_rates_pretrain=0.0001, pretrain_momentum=0.0):
-    feat_len = np.shape(feat_labs[0][0])[1]
-    input_size = feat_len * (2 * context_size + 1)
-    output_size = len(alphabet)
-    # output_size = len(np.unique(Y))
+def pretrain(model, feats, n_epochs_pretrain=6, learn_rates_pretrain=0.0001, pretrain_momentum=0.0):
+    context_size = model.context_size
+    input_size = model.input_size
 
-    # # layers initializing
-    # network = InputLayer((None, input_size))
-    # for i in xrange(n_hidden):
-    #     network = DenseLayer(network, hidden_size)
-    # network = DenseLayer(network, output_size, nonlinearity=softmax)
-    #
-    # model = nolearn.lasagne.NeuralNet(network, max_epochs=40, update=adam, verbose=1)
+    X = []
+    for xs in feats:
+        for i in xrange(context_size, len(xs) - context_size):
+            X.append(np.ndarray(shape=(input_size,), dtype=float, buffer=xs[i - context_size: i + 1 + context_size]))
+    # X = np.array(X).astype(np.float32)
+    # Y = np.array(Y).astype(np.int32)
+    X = np.array(X)
 
-    layers = [input_size]
-    layers.extend(np.repeat(hidden_size, n_hidden))
-    # # botleneck layer
-    # layers.append(128)
-    layers.append(output_size)
-    model = MyDBN(layer_sizes=layers,
-                  learn_rates=learn_rates,
-                  learn_rate_decays=learn_rate_decays,
-                  momentum=momentum,  # set 0.0 during several first epochs
-                  l2_costs=l2_costs,
-                  epochs=n_epochs,
-                  epochs_pretrain=n_epochs_pretrain,
-                  pretrain_momentum=pretrain_momentum,
-                  learn_rates_pretrain=learn_rates_pretrain,
-                  # dropouts=0.3,
-                  minibatch_size=128,
-                  nesterov=True,
-                  verbose=3, )
+    # from sklearn import preprocessing
+    # if len(X) > 0:
+    #     X = preprocessing.normalize(X)
 
-    length = len(feat_labs)
-    pre_length = (1-pre_size)*length
-    X_pre, _ = _data_with_context(context_size, input_size, feat_labs)
+    model.epochs_pretrain = n_epochs_pretrain
+    model.learn_rates_pretrain = learn_rates_pretrain
+    model.pretrain_momentum = pretrain_momentum
 
-    feat_labs = feat_labs[:pre_length]
+    model.pretrain(X)
+
+    return model
+
+
+def train_and_test(model, feat_labs, test_size=0.4, validation_size=0.0, file_name='results.txt',
+                   learn_rates=0.1, n_epochs=10, learn_rate_decays=0.99, momentum=0.9, l2_costs=0.0001):
+    input_size = model.input_size
+    output_size = model.output_size
+    context_size = model.context_size
+
+    if input_size != np.shape(feat_labs[0][0])[1] * (2 * context_size + 1):
+        raise Exception("Given feature size is inconsistent to DBN input size (according to context size)")
+
+    model.learn_rates = learn_rates
+    model.epochs = n_epochs
+    model.learn_rate_decays = learn_rate_decays
+    model.momentum = momentum
+    model.l2_costs = l2_costs
 
     random_split = cross_validation.ShuffleSplit(len(feat_labs), n_iter=1, test_size=test_size)
     for train_and_valid_index, test_index in random_split:
@@ -211,7 +266,7 @@ def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
             X_train, y_train = _data_with_context(context_size, input_size, train[train_index])
             X_val, y_val = _data_with_context(context_size, input_size, train[valid_index])
 
-            errs, accs = model.fit_with_validation(X_pre, X_train, y_train, X_val, y_val, output_size)
+            errs, accs = model.fit_with_validation(X_train, y_train, X_val, y_val, output_size)
 
         # for testing
         X_test, y_test = _data_with_context(context_size, input_size, feat_labs[test_index])
@@ -223,11 +278,12 @@ def train_and_test(alphabet, feat_labs, context_size=8, file_name='results.txt',
         print "Test accuracy: " + str(acc)
 
     # writing results in file
-    string = "%d utt., %d cont., DBN%s, %d epochs, LR: %s, mom: %s, LR_decay: %s, L2: %s, %s pretr. epochs, LR_pretr: %s, " \
-             "valid. size %r: accuracy=%s,\n  train errors %s\n  valid.accur. %s\n" % (
-                 len(feat_labs), context_size, model.layer_sizes, model.epochs, str(model.learn_rates), str(momentum),
+    string = "%d utt., %d cont., DBN%s, %d epochs, LR: %s, mom: %s, LR_decay: %s, L2: %s, %s pretr. epochs, " \
+             "LR_pretr: %s, valid. size %r: accuracy=%s,\n  train errors %s\n  valid.accur. %s\n" % (
+                 len(feat_labs), context_size, model.layer_sizes, model.epochs, str(model.learn_rates),
+                 str(model.momentum),
                  str(model.learn_rate_decays), str(model.l2_costs), str(model.epochs_pretrain),
-                 str(learn_rates_pretrain), validation_size, str(acc), str(errs), str(accs))
+                 str(model.learn_rates_pretrain), validation_size, str(acc), str(errs), str(accs))
 
     newpath = r'../DBN'
     if not os.path.exists(newpath):
@@ -258,9 +314,12 @@ def _data_with_context(context_size, input_size, feat_lab):
     X = np.array(X)
     y = np.array(y)
 
-    from sklearn import preprocessing
-    if len(X) > 0:
-        X = preprocessing.normalize(X)
+    # FIXME potential mistake: result of normalization depends on min and max bounds of X, then they are lost
+    # XXX can this eat much memory?
+
+    # from sklearn import preprocessing
+    # if len(X) > 0:
+    #     X = preprocessing.normalize(X)
 
     return X, y
 

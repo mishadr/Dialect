@@ -12,6 +12,8 @@ from dataparser import *
 from training_data_creator import *
 import dbn_trainer
 import lstm_trainer
+import tf_feedforward
+import tf_seq2seq
 import pickle
 
 import pdb
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     print str(len(textGrids)) + " files read"
 
     # parsing data
-    n_utterances = 500
+    n_utterances = 100
     parsedFiles = []
     n_correct = 0
     for i in range(len(textGrids)):
@@ -61,16 +63,25 @@ if __name__ == "__main__":
     # to unify alphabet encoding
     parsedFiles.sort()
 
-    print str(len(parsedFiles)) + " utterances will be used"
-    feature_extractor = FeatureExtractor(parsedFiles)
-    alphabet = feature_extractor.get_alphabet()
+    # # saving general alphabet (taken from all files)
+    # alphabet = FeatureExtractor(parsedFiles).get_alphabet()
+    # with open("../models/alphabet.194", 'w') as file:
+    #     pickle.dump(alphabet, file)
+
+    # loading general alphabet
+    with open("../models/alphabet.194", 'r') as file:
+        alphabet = pickle.load(file)
+
     print str(len(alphabet)) + " symbols in alphabet:"
     print u', '.join([u"{0:s} = {1:d}".format(sym, id) for sym, id in alphabet.items()])
+
+    print str(len(parsedFiles)) + " utterances will be used"
+    feature_extractor = FeatureExtractor(parsedFiles)
 
     # spec_feat = feature_extractor.get_spec_features()
     # print [np.shape(xs) for (xs, cs) in spec_feat]
 
-    feat_labs = array(feature_extractor.get_spec_features())
+    feat_labs = array(feature_extractor.get_spec_features(alphabet))
     print [np.shape(xs) for (xs, cs) in feat_labs]
 
 
@@ -93,6 +104,13 @@ if __name__ == "__main__":
     # model.means_ = means
     # model.covars_ = covars
     # X, Z = model.sample(100)
+
+
+    # # ----------------- TensorFlow training
+
+    # tf_feedforward.train_and_test(alphabet, feat_labs)
+
+    tf_seq2seq.train_and_test(alphabet, feat_labs)
 
     # ----------------- DBN training
     # for i in xrange(7, 10):
@@ -133,17 +151,36 @@ if __name__ == "__main__":
     #     except Exception:
     #         print "At i=%d failed" % m
 
-    model = dbn_trainer.train_and_test(alphabet, feat_labs, context_size=7, n_epochs=20,
-                                       n_epochs_pretrain=6, learn_rates_pretrain=0.0001, pretrain_momentum=0.0,
-                                       learn_rates=0.01, momentum=0.9, l2_costs=0.0001,
-                                       validation_size=0.3, test_size=0.0)
+    # model = dbn_trainer.train_and_test(alphabet, feat_labs, context_size=7, n_epochs=20,
+    #                                    n_epochs_pretrain=6, learn_rates_pretrain=0.0001, pretrain_momentum=0.0,
+    #                                    learn_rates=0.01, momentum=0.9, l2_costs=0.0001,
+    #                                    validation_size=0.3, test_size=0.0)
 
-    # saving model to file
-    newpath = r'../models'
-    if not os.path.exists(newpath):
-        os.makedirs(newpath)
-    with open("../models/dbn_model_100.1", 'w') as file:
-        pickle.dump(model, file)
+    # feats = [a for a, b in feat_labs]
+    #
+    # # # reading model from file
+    # # with open("../models/dbn_model_pre_2500.194", 'r') as file:
+    # #     model = pickle.load(file)
+    #
+    # context_size = 7
+    #
+    # feat_len = np.shape(feat_labs[0][0])[1]
+    # input_size = feat_len * (2 * context_size + 1)
+    # output_size = len(alphabet)
+
+    # model = dbn_trainer.DBN_Model(input_size, output_size, context_size=context_size)
+    #
+    # model = dbn_trainer.pretrain(model, feats, n_epochs_pretrain=2, learn_rates_pretrain=0.0001, pretrain_momentum=0.0)
+
+    # # saving model to file
+    # newpath = r'../models'
+    # if not os.path.exists(newpath):
+    #     os.makedirs(newpath)
+    # with open("../models/dbn_model_pre_2500.194", 'w') as file:
+    #     pickle.dump(model, file)
+
+    # model = dbn_trainer.train_and_test(model, feat_labs, validation_size=0.3, test_size=0.0,
+    #                                    n_epochs=20, learn_rates=0.01, momentum=0.9, l2_costs=0.0001)
 
     # random_split = cross_validation.ShuffleSplit(len(feat_labs), n_iter=1, test_size=0.4, random_state=13)
     # for train_index, test_index in random_split:
@@ -173,16 +210,17 @@ if __name__ == "__main__":
     # with open("../models/dbn_model_100.1", 'r') as file:
     #     model = pickle.load(file)
     #
-    acc_log = []
-    for i in xrange(0, 40):
-        f = feat_labs[i]
-        # spec = spec_feat[i]
-        acc = dbn_trainer.predict(model, f)
-        acc_log.append(acc)
-
-    print mean(acc_log)
+    # acc_log = []
+    # for i in xrange(0, 40):
+    #     f = feat_labs[i]
+    #     # spec = spec_feat[i]
+    #     acc = dbn_trainer.predict(model, f)
+    #     acc_log.append(acc)
+    #
+    # print mean(acc_log)
 
     # # ----------------- LSTM training
     #
     # lstm_trainer.train(alphabet, feat_labs)
+
 

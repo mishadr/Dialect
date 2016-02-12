@@ -31,9 +31,9 @@ class FeatureExtractor:
                 let = interval.text
                 letters.append(let)
                 if let in letters_counter:
-                    letters_counter[interval.text] += 1
+                    letters_counter[let] += 1
                 else:
-                    letters_counter[interval.text] = 1
+                    letters_counter[let] = 1
 
         letters_stat = {}
         for key, count in letters_counter.items():
@@ -54,13 +54,13 @@ class FeatureExtractor:
 
         return dict
 
-    def extract_spectrogram_features(self, data):
+    def extract_spectrogram_features(self, data, alphabet):
         intervals = data.getIntervals()
         frames_array = data.getFrames()
         fs = data.getFramerate()
         if fs != 44100:
             print "different framerate: " + str(fs)
-        nfft = 254
+        nfft = 1022
         time_step = 0.5 * nfft / fs
 
         # cut voice frequencies of [300, 4000] Hz
@@ -110,13 +110,13 @@ class FeatureExtractor:
             label = interval.text
             for i in xrange(np.shape(features)[1]):
                 features_vectors.append(features[:, i])
-                labels.append(self.alphabet[label])  # TODO shift this to switch targets
+            labels.append(alphabet[label])  # TODO shift this to switch targets: dense <--> sparse
 
         # if np.shape(feature_label[0])[1] != 128:
         #     print "short interval"
         return np.array(features_vectors), np.array(labels)
 
-    def extract_mfcc_feature_vec(self, data):
+    def extract_mfcc_feature_vec(self, data, alphabet):
         n_ceps = 13
         features = np.zeros((1, n_ceps))
         feat_label_vec = []
@@ -150,7 +150,7 @@ class FeatureExtractor:
                 #
                 # normalized_cep = preprocessing.normalize([ceps[i]])
                 features = np.append(features, [ceps[i]], axis=0)
-                feat_label_vec.append(self.alphabet[letter])  # TODO shift this to switch targets
+                feat_label_vec.append(alphabet[letter])  # TODO shift this to switch targets
 
         features = features[1:, :]
         # print("feat size", len(features))
@@ -223,11 +223,11 @@ class FeatureExtractor:
 
         return self._mfcc_feature_label
 
-    def get_spec_features(self):
+    def get_spec_features(self, alphabet):
         if self.spec_feature_label is None:
             self.spec_feature_label = []
             for data in self.parsed_files:
-                raw = self.extract_spectrogram_features(data)
+                raw = self.extract_spectrogram_features(data, alphabet)
                 # TODO what if  raw[0] - np.mean(raw[0])
                 data = (preprocessing.normalize(raw[0]), raw[1])
                 # data = ((raw[0] - np.mean(raw[0]))/(raw[0].max() - raw[0].min()), raw[1])
